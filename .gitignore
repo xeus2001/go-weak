@@ -2,3 +2,4 @@
 /.idea/go-weak.iml
 /.idea/modules.xml
 /.idea/vcs.xml
+/coverage.out

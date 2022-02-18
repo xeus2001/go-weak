@@ -8,12 +8,12 @@ Basically the next step is to implement a concurrent weak hash map, as proposed 
 
 ## Implementation details
 
-The implementation is different from the one of [ivanrad](https://github.com/ivanrad/go-weakref) and others have made,
+The implementation is different from the one [ivanrad](https://github.com/ivanrad/go-weakref) and others have made,
 because I think that one problem must be solved. When we restore the pointer while the GC is running, there will be a
-write-barrier so that the restored pointer normally would be flagged as black as soon as it is created. The problem 
-is now a chicken egg one, we need to be sure that the uintptr is valid before we restore it. This implementation solves 
-this by ensuring in the finalizer that, when concurrently a **Get()** is executing, the last valid reference given
-to the finalizer is _rescued_ until all concurrent `Get()`'s are done.
+write-barrier so that the restored pointer normally would be flagged as black as soon as it is created. The problem is
+now a chicken egg one, we need to be sure that the uintptr is valid before we restore it. This implementation solves
+this by ensuring in the finalizer that, when concurrently a **Get()** is executing, the last valid reference given to
+the finalizer is _rescued_ until all concurrent `Get()`'s are done.
 
 **This code should be thread safe, but the referee (underlying to which the weak reference is referring) may not be!**
 
@@ -43,3 +43,9 @@ func demo() {
 	}
 }
 ```
+
+## Test
+
+I added a small make file and increased the test coverage is 100%. Do `make test` and then `make test-result`. Due to
+the nature of one of the concurrent tests it is possible that on branch is not entered, even while it is unlikely, so
+you may to have to execute this multiple times to get a test coverage of 100% (at least for me, it works everytime).

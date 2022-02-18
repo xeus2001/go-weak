@@ -122,3 +122,57 @@ func TestRaceCondition(t *testing.T) {
 	}
 	t.Log("0: The referee was collected")
 }
+
+func TestNewDeadRef(t *testing.T) {
+	var _nil *point3D
+	testRef := weak.NewRef[point3D](_nil)
+	if testRef.Get() != nil {
+		t.Errorf("Expected test reference to be nil!")
+	}
+}
+
+func TestNewDeadRef2(t *testing.T) {
+	var _nil *point3D
+	testRef := weak.NewRef[point3D](_nil)
+	if testRef.GetTest() != nil {
+		t.Errorf("Expected test reference to be nil!")
+	}
+}
+func TestConcurrentGet(t *testing.T) {
+	p1 := &point3D{1, 2, 3}
+	testRef := weak.NewRef[point3D](p1)
+	w := sync.WaitGroup{}
+	w.Add(1000)
+	for i := 0; i < 1000; i++ {
+		go func() {
+			for x := 0; x < 10000; x++ {
+				if testRef.Get() == nil {
+					t.Fatal("Reference must not be nil!")
+				}
+				runtime.Gosched()
+			}
+			w.Done()
+		}()
+	}
+	w.Wait()
+}
+
+func TestConcurrentGet2(t *testing.T) {
+	p1 := &point3D{1, 2, 3}
+	testRef := weak.NewRef[point3D](p1)
+	w := sync.WaitGroup{}
+	w.Add(2)
+	go func() {
+		if testRef.GetTest() == nil {
+			t.Errorf("Reference must not be nil!")
+		}
+		w.Done()
+	}()
+	go func() {
+		if testRef.GetTest() == nil {
+			t.Errorf("Reference must not be nil!")
+		}
+		w.Done()
+	}()
+	w.Wait()
+}
