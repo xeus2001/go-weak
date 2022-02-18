@@ -6,6 +6,9 @@ of [ivanrad](https://github.com/ivanrad/go-weakref).
 Basically the next step is to implement a concurrent weak hash map, as proposed by the following still open
 [ticket #43615](https://github.com/golang/go/issues/43615).
 
+Another implementation of a weak map was done
+by [shyiko](https://gist.github.com/shyiko/e6e2a67e1c882a5034a3a290f9cc1a31).
+
 ## Warning
 
 This code relies upon features of the garbage collector that may be changed in future go versions!
@@ -16,9 +19,9 @@ The implementation is different from the one [ivanrad](https://github.com/ivanra
 because I think that one problem must be solved. When we restore the pointer while the GC is running, there will be a
 write-barrier so that the restored pointer would be flagged as black as soon as it is created (when I understand the
 latest version of the GC right). The problem is now a chicken egg one, we need to be sure that the uintptr is valid
-before we restore it. This implementation solves this problem by ensuring in the finalizer that, when concurrently a 
-**Get()** is executing, the last valid reference given to the finalizer is _rescued_ until all concurrent `Get()`'s 
-are done.
+before we restore it. This implementation solves this problem by ensuring in the finalizer that, when concurrently a
+**Get()** is executing, the last valid reference given to the finalizer is _rescued_ until all concurrent `Get()`'s are
+done.
 
 This code should be thread safe, but the referee, the value being referred, may not be, so be careful!
 
