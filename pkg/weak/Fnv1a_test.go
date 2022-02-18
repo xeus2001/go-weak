@@ -5,24 +5,6 @@ import (
 	"testing"
 )
 
-func TestToByteArray(t *testing.T) {
-	b := []byte{0, 1, 2, 3}
-	array := weak.ToByteArray(&b)
-	if array == nil {
-		t.Fatal("ToByteArray must not return nil")
-	}
-	l := len(b)
-	if l != 4 {
-		t.Fatalf("Received wrong length of byte slice, expected 4, got: %d", l)
-	}
-	for i := 0; i < l; i++ {
-		expected := byte(i)
-		if array[i] != expected {
-			t.Fatalf("Found illegal value at index %d", i)
-		}
-	}
-}
-
 func TestFnv1a_a(t *testing.T) {
 	// See: https://md5calc.com/hash/fnv1a64/a
 	// a = af63dc4c8601ec8c
