@@ -75,8 +75,9 @@ func TestRaceCondition(t *testing.T) {
 		v2 := testRef.GetTest()
 		if v2 == nil {
 			t.Errorf("1: Reference is nil, but must not happen")
+		} else {
+			t.Log("1: Reference is alive, GetTest() returned it, ok!")
 		}
-		t.Log("1: Reference is alive, GetTest() returned it, ok!")
 		wEND.Done()
 		t.Log("1: Keep the reference alive until main routing is ready")
 		wDIE.Wait()
@@ -147,7 +148,8 @@ func TestConcurrentGet(t *testing.T) {
 		go func() {
 			for x := 0; x < 10000; x++ {
 				if testRef.Get() == nil {
-					t.Fatal("Reference must not be nil!")
+					t.Error("Reference must not be nil!")
+					break
 				}
 				runtime.Gosched()
 			}
