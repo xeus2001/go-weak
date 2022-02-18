@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"sync"
 	"testing"
-	"time"
 )
 
 type point3D struct {
@@ -48,11 +47,11 @@ func TestRaceCondition(t *testing.T) {
 	p := &point3D{1, 2, 3}
 	testRef := weak.NewRef[point3D](p)
 	if testRef == nil {
-		t.Fatal("Reference is nil")
+		t.Fatal("0: Reference is nil")
 	}
 	v := testRef.Get()
 	if v == nil {
-		t.Fatal("Value is nil")
+		t.Fatal("0: Value is nil")
 	}
 	if (*v).x != (*p).x {
 		t.Errorf("Invalid x: %d", (*p).x)
@@ -63,42 +62,63 @@ func TestRaceCondition(t *testing.T) {
 	if (*v).z != (*p).z {
 		t.Errorf("Invalid z: %d", (*p).z)
 	}
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	t.Log("Start go routing")
+	wSTART := sync.WaitGroup{}
+	wSTART.Add(1)
+	wEND := sync.WaitGroup{}
+	wEND.Add(1)
+	wDIE := sync.WaitGroup{}
+	wDIE.Add(1)
+	t.Log("0: Start go routing (1)")
 	go func() {
-		t.Log("Go routing started, do GetTest")
+		wSTART.Done()
+		t.Log("1: Go routing started, do long worst case GetTest")
 		v2 := testRef.GetTest()
 		if v2 == nil {
-			t.Errorf("Reference is nil, but must not happen")
+			t.Errorf("1: Reference is nil, but must not happen")
 		}
-		t.Log("Reference was alive, happy!")
-		wg.Done()
+		t.Log("1: Reference is alive, GetTest() returned it, ok!")
+		wEND.Done()
+		t.Log("1: Keep the reference alive until main routing is ready")
+		wDIE.Wait()
+		t.Log("1: Die")
+		runtime.Gosched()
 	}()
-	// We still have a reference, ensure that the go func stated
-	time.Sleep(1 * time.Second)
-	// Drop the reference, current our "Go routing should hang"
-	t.Log("Drop references and start GC")
+	t.Log("0: Wait for go routing (1) to start")
+	wSTART.Wait()
+	t.Log("0: Drop all references (there are none left now!) while go method (1) hangs in GetTest()")
+	runtime.Gosched()
 	p = nil
 	v = nil
-	for i := 0; i < 10; i++ {
-		runtime.Gosched()
+	t.Log("0: Run GC ...")
+	runtime.Gosched()
+	for i := 1; i < 6; i++ {
 		runtime.GC()
+		t.Logf("0: GC #%d done", i)
+		runtime.Gosched()
 	}
-	p = testRef.Get()
-	if p == nil {
-		t.Error("p is nil")
+	t.Log("0: Wait for the Go method to finish")
+	runtime.Gosched()
+	wEND.Wait()
+	if testRef.Get() == nil {
+		t.Fatal("0: The test reference is nil, which must not happen!")
 	}
-	wg.Wait()
+	t.Log("0: The reference is still alive, wait for the go method (1) to die")
+	runtime.Gosched()
+	wDIE.Done()
+	runtime.Gosched()
+	t.Log("0: Drop all references and start GC again, this time the weak reference should fall")
 	p = nil
 	v = nil
-	t.Log("Drop references again and start GC again, this time the weak ref should fall")
-	for i := 0; i < 10; i++ {
+	t.Log("0: Run GC ...")
+	runtime.Gosched()
+	for i := 1; i < 6; i++ {
 		runtime.Gosched()
+		t.Logf("0: GC #%d done", i)
 		runtime.GC()
 	}
 	p = testRef.Get()
 	if p != nil {
-		t.Error("p is not nil")
+		t.Fatal("0: p is not nil, the weak referee still lives, must not happen")
 	}
+	t.Log("0: The referee was collected")
 }
