@@ -36,12 +36,12 @@ func NewRef[T any](pValue *T) *Ref[T] {
 			// wait until it did. In any case in this race condition, the live-time of the weak-reference should be
 			// extended, so register the finalizer again.
 			runtime.SetFinalizer(p, f)
-			// Grab the lock on the weak reference
+			// Grab the lock on the weak reference in a spin-loop.
 			for !atomic.CompareAndSwapUint32(&r.state, ALIVE, USE) {
 				runtime.Gosched()
 			}
 			// We have the lock, that means that no other Get() method is currently using the uintptr, so
-			// we can release the lock again
+			// we can release the lock again.
 			r.state = ALIVE
 		}
 		runtime.SetFinalizer(pValue, f)
@@ -55,14 +55,13 @@ func NewRef[T any](pValue *T) *Ref[T] {
 func (r *Ref[T]) Get() *T {
 repeat:
 	if atomic.CompareAndSwapUint32(&r.state, ALIVE, USE) {
-		// The happy path, when we can use the weak reference exclusively for us
+		// The happy path, when we can use the weak reference exclusively for us.
 		t := (*T)(unsafe.Pointer(r.hidden))
-		// Release our lock using a store-store write-barrier
+		// Release our lock using a store-store write-barrier.
 		atomic.StoreUint32(&r.state, ALIVE)
-		// Return the reference
+		// Return the reference.
 		return t
 	}
-	// The dead path
 	if atomic.LoadUint32(&r.state) == DEAD {
 		return nil
 	}
@@ -71,7 +70,7 @@ repeat:
 	goto repeat
 }
 
-// GetTest is only used to test race conditions
+// GetTest is only used to test race conditions.
 func (r *Ref[T]) GetTest() *T {
 repeat:
 	if atomic.CompareAndSwapUint32(&r.state, ALIVE, USE) {
