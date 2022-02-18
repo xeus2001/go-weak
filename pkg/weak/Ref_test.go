@@ -1,7 +1,7 @@
 package weak_test
 
 import (
-	"go-weak/pkg/weak"
+	"github.com/xeus2001/go-weak/pkg/weak"
 	"runtime"
 	"sync"
 	"testing"
