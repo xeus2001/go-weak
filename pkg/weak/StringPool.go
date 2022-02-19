@@ -100,8 +100,8 @@ func (pool *StringPool) ToString(b []byte) *string {
 	}
 	bytes := SliceToByteArray(&b)
 	hash := Fnv1a(bytes, length)
-	END := pool.headSize - 1
 
+	END := pool.headSize - 1
 	headStrings := pool.headStrings()
 	//oldString := pool.oldStrings()
 	strings := headStrings
@@ -122,7 +122,7 @@ func (pool *StringPool) ToString(b []byte) *string {
 		if state == ALIVE && s.length == length && s.hash == hash {
 			if s.bytes != nil {
 				if bytes.Equals(s.bytes, length) {
-					useStateAndUid := (stateAndUid & 0xffff_ff00) | uint64(USE)
+					useStateAndUid := (stateAndUid & 0xffff_ffff_ffff_ff00) | uint64(USE)
 					if atomic.CompareAndSwapUint64(&s.stateAndUid, stateAndUid, useStateAndUid) {
 						found := (*string)(unsafe.Pointer(s.string))
 						s.stateAndUid = useStateAndUid
@@ -147,7 +147,7 @@ func (pool *StringPool) ToString(b []byte) *string {
 		//uid := stateAndUid >> 8
 		state := uint32(s.stateAndUid & 0xff)
 		if state == DEAD {
-			useStateAndUid := (stateAndUid & 0xffff_ff00) | uint64(USE)
+			useStateAndUid := (stateAndUid & 0xffff_ffff_ffff_ff00) | uint64(USE)
 			if atomic.CompareAndSwapUint64(&s.stateAndUid, stateAndUid, useStateAndUid) {
 				uid := atomic.AddUint64(nextUid, 1)
 				str := string(b)
@@ -155,7 +155,33 @@ func (pool *StringPool) ToString(b []byte) *string {
 				s.bytes = bytes
 				s.hash = hash
 				s.length = length
-				// TODO: Register finalizer!
+				var finalizer func(str *string)
+				finalizer = func(str *string) {
+					alive := (s.stateAndUid & 0xffff_ffff_ffff_ff00) | uint64(ALIVE)
+					if atomic.CompareAndSwapUint64(&s.stateAndUid, alive, uint64(DEAD)) {
+						s.string = 0
+						s.bytes = nil
+						s.hash = 0
+						s.length = 0
+						return
+					}
+					// Concurrency: Another method currently uses the weak-reference. However, it is not guaranteed
+					// that this method did already create a real pointer (visible for the GC) from the uintptr and
+					// this time there are other concurrent things that can happen. Therefore, we need to wait until
+					// we can acquire the lock to rescue the reference.
+					runtime.SetFinalizer(&str, finalizer)
+					// Grab the lock on the weak reference in a spin-loop.
+				finSpin:
+					current := atomic.LoadUint64(&s.stateAndUid)
+					use := (current & 0xffff_ffff_ffff_ff00) | uint64(USE)
+					if !atomic.CompareAndSwapUint64(&s.stateAndUid, current, use) {
+						runtime.Gosched()
+						goto finSpin
+					}
+					alive = (s.stateAndUid & 0xffff_ffff_ffff_ff00) | uint64(ALIVE)
+					s.stateAndUid = alive
+				}
+				runtime.SetFinalizer(&str, finalizer)
 				atomic.StoreUint64(&s.stateAndUid, (uid<<8)|uint64(ALIVE))
 				return &str
 			}
@@ -167,8 +193,19 @@ func (pool *StringPool) ToString(b []byte) *string {
 }
 
 // Size returns the estimated amount of stored strings.
-func (pool *StringPool) Size() int {
-	return 0
+func (pool *StringPool) Size() uint {
+
+	END := pool.headSize - 1
+	headStrings := pool.headStrings()
+	//oldString := pool.oldStrings()
+	strings := headStrings
+	var size uint = 0
+	for i := uint(0); i <= END; i++ {
+		if (strings[i].stateAndUid & 0xff) == uint64(ALIVE) {
+			size++
+		}
+	}
+	return size
 }
 
 // Capacity returns the maximal amount of strings that currently can be stored.

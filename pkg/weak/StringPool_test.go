@@ -3,6 +3,7 @@ package weak_test
 import (
 	"github.com/xeus2001/go-weak/pkg/runtime"
 	"github.com/xeus2001/go-weak/pkg/weak"
+	"runtime"
 	"testing"
 	"unsafe"
 )
@@ -36,6 +37,30 @@ func TestStringSize(t *testing.T) {
 }
 
 func TestWeakness(t *testing.T) {
+	pool := weak.NewStringPool()
+	bytes := []byte{'H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd'}
+	p := pool.ToString(bytes)
+	if p == nil {
+		t.Fatal("Pool must not return nil")
+	}
+	if *p != "Hello World" {
+		t.Errorf("The returned string should have been 'Hello World', but was: '%s'", *p)
+	}
+	if pool.Size() != 1 {
+		t.Fatalf("The pool does have a wrong size, expected 1")
+	}
+	t.Log("Drop reference to the string and execute GC")
+	p = nil
+	for i := 1; i < 6; i++ {
+		runtime.GC()
+		t.Logf("GC #%d", i)
+		runtime.Gosched()
+	}
+	if pool.Size() != 0 {
+		t.Errorf("Expected that the string was garbage collected, but found pool size of: %d", pool.Size())
+	} else {
+		t.Log("Pool freed the reference, new size is 0!")
+	}
 }
 
 func TestOneByteStrings(t *testing.T) {

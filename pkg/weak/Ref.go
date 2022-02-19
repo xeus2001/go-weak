@@ -31,7 +31,7 @@ func NewRef[T any](pValue *T) *Ref[T] {
 				r.hidden = 0
 				return
 			}
-			// Concurrency: A Get() method currently uses the weak-reference. However, it is not guranteed that this
+			// Concurrency: A Get() method currently uses the weak-reference. However, it is not guaranteed that this
 			// method did already create a real pointer (visible for the GC) from the uintptr. Therefore, we need to
 			// wait until it did. In any case in this race condition, the live-time of the weak-reference should be
 			// extended, so register the finalizer again.
