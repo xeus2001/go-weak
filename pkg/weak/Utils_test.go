@@ -11,18 +11,13 @@ type allocPoint struct {
 }
 
 func TestAlloc(t *testing.T) {
-	u := weak.Alloc(-1)
-	if u != nil {
-		t.Error("Expected nil, but got a reference?")
-	}
-
-	u = weak.Alloc(0)
+	u := weak.Alloc(0)
 	if u != nil {
 		t.Error("Expected nil, but got a reference?")
 	}
 
 	var ap allocPoint
-	size := int(unsafe.Sizeof(ap))
+	size := uint(unsafe.Sizeof(ap))
 	if size != 8 {
 		t.Fatalf("We expect the size to be 8, but is: %d", size)
 	}

@@ -48,8 +48,8 @@ func SliceToByteArray(bytes *[]byte) *ByteArray {
 }
 
 // Alloc allocates the give amount of byte and returns an runtime pointer to them.
-func Alloc(size int) unsafe.Pointer {
-	if size <= 0 {
+func Alloc(size uint) unsafe.Pointer {
+	if size == 0 {
 		return nil
 	}
 	bytes := make([]byte, size)

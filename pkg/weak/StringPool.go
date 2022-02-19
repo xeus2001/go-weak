@@ -1,6 +1,8 @@
 package weak
 
 import (
+	"runtime"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -35,26 +37,30 @@ type StringPool struct {
 
 // String is a weak string struct.
 type String struct {
-	hidden   uintptr // hidden pointer to the string
-	elements *byte   // elements points to the bytes of the string
-	length   uint    // length holds the length of the string in byte
-	state    uint32  // state holds the state of this weak reference
-	hash     uint64  // hash is the FNV1a hash
+	string      uintptr    // string pointer to the string
+	bytes       *ByteArray // elements points to the bytes of the string
+	length      uint       // length holds the length of the string in byte
+	stateAndUid uint64     // stateAndUid holds the state of this weak reference and the UID
+	hash        uint64     // hash is the FNV1a hash
 }
 
+// nextUid is a pointer to the next `uid` to be used.
+var nextUid *uint64 = (*uint64)(Alloc(8))
+
 // StringSize is the size of a weak string struct in byte.
-const StringSize = 40
+const (
+	StringSize uint   = 40
+	STATE_MASK uint64 = 0xff
+)
+
+// TrySlotsBeforeResize holds the amount of slots to be tested before the map is resized.
+var TrySlotsBeforeResize uint = 8
 
 // StringArray is an arbitrary large string array type.
 type StringArray [2147483648]String
 
 // empty is the empty string returned, when trying to intern an empty string or nil.
 var empty = ""
-
-// bytes is a helper to get simplified access to the underlying bytes of a weak string structure.
-func (s *String) bytes() *ByteArray {
-	return (*ByteArray)(unsafe.Pointer(s.elements))
-}
 
 // NewStringPool allocates a new string pool and returns a pointer to it. The method will never return nil.
 func NewStringPool() *StringPool {
@@ -92,23 +98,71 @@ func (pool *StringPool) ToString(b []byte) *string {
 	if length == 0 {
 		return &empty
 	}
-	array := SliceToByteArray(&b)
-	hash := Fnv1a(array, length)
+	bytes := SliceToByteArray(&b)
+	hash := Fnv1a(bytes, length)
 	END := pool.headSize - 1
 
 	headStrings := pool.headStrings()
 	//oldString := pool.oldStrings()
 	strings := headStrings
-	index := uint32(hash & uint64(END))
+	index := uint(hash & uint64(END))
 
-	s := &strings[index]
-	if s.state == ALIVE && s.length == length && s.hash == hash {
-		s_bytes := s.bytes()
-		if s_bytes != nil {
-			//for i := uint32(0); i < length; i++ {
-			//}
+	// TODO: What happens when two threads concurrently insert the same bytes, both may not find them and then
+	//       insert them. My only solution is that after we've inserted our version, we need to verify that nobody
+	//       else has inserted the same string in front of us, if he has, we can simply release our version. We
+	//       simply say, the version that is the closest to the original index should stay, duplicates need to release.
+
+	// Search existing
+	for search := TrySlotsBeforeResize; search > 0; search-- {
+		s := &strings[index]
+	spin:
+		stateAndUid := s.stateAndUid
+		//uid := stateAndUid >> 8
+		state := uint32(s.stateAndUid & 0xff)
+		if state == ALIVE && s.length == length && s.hash == hash {
+			if s.bytes != nil {
+				if bytes.Equals(s.bytes, length) {
+					useStateAndUid := (stateAndUid & 0xffff_ff00) | uint64(USE)
+					if atomic.CompareAndSwapUint64(&s.stateAndUid, stateAndUid, useStateAndUid) {
+						found := (*string)(unsafe.Pointer(s.string))
+						s.stateAndUid = useStateAndUid
+						return found
+					}
+					// Concurrency: We have found the string, but it is concurrently accessed, we need to wait
+					// what happens to it, it may be possible that it is garbage collected, or it is moved in memory
+					// due to a resize, in any case, we need to wait.
+					runtime.Gosched()
+					goto spin
+				}
+			}
 		}
+		index = (index + 1) & END
 	}
+
+	// Insert string
+	index = uint(hash & uint64(END))
+	for insert := TrySlotsBeforeResize; insert > 0; insert-- {
+		s := &strings[index]
+		stateAndUid := s.stateAndUid
+		//uid := stateAndUid >> 8
+		state := uint32(s.stateAndUid & 0xff)
+		if state == DEAD {
+			useStateAndUid := (stateAndUid & 0xffff_ff00) | uint64(USE)
+			if atomic.CompareAndSwapUint64(&s.stateAndUid, stateAndUid, useStateAndUid) {
+				uid := atomic.AddUint64(nextUid, 1)
+				str := string(b)
+				s.string = (uintptr)(unsafe.Pointer(&str))
+				s.bytes = bytes
+				s.hash = hash
+				s.length = length
+				// TODO: Register finalizer!
+				atomic.StoreUint64(&s.stateAndUid, (uid<<8)|uint64(ALIVE))
+				return &str
+			}
+		}
+		index = (index + 1) & END
+	}
+	// TODO: This operation should never fail, but in this state it will return nil as error!
 	return nil
 }
 
