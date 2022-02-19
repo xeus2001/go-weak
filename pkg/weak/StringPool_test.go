@@ -1,6 +1,7 @@
 package weak_test
 
 import (
+	"github.com/xeus2001/go-weak/pkg/runtime"
 	"github.com/xeus2001/go-weak/pkg/weak"
 	"testing"
 	"unsafe"
@@ -44,5 +45,9 @@ func TestStringSize(t *testing.T) {
 	size := int(unsafe.Sizeof(ws))
 	if size != weak.StringSize {
 		t.Fatalf("Size of the weak.String is defined as %d, but really is: %d", weak.StringSize, size)
+	}
+	g := g.GetG()
+	if g == nil {
+		t.Fatal("Shit")
 	}
 }

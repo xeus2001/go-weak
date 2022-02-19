@@ -1,6 +1,8 @@
 package weak
 
-import "unsafe"
+import (
+	"unsafe"
+)
 
 //
 // Concept:
@@ -22,18 +24,12 @@ import "unsafe"
 // There are various points we can optimize later, for example shrink the table, but let's first get started.
 //
 
-// _string is just a helper to simplify code.
-type _string struct {
-	elements *byte
-	length   int
-}
-
 // StringPool is a concurrent weak string pool to cache strings for parsers and alike.
 type StringPool struct {
 	old      *String // old is only used when the hash map is resized.
-	oldSize  int     // oldSize holds the size of the old hash map.
+	oldSize  uint    // oldSize holds the size of the old hash map.
 	head     *String // head always refer to the current head data.
-	headSize int     // newSize holds the size of the new hash map.
+	headSize uint    // newSize holds the size of the new hash map.
 	state    uint32  // state holds the state of the pool.
 }
 
@@ -41,12 +37,19 @@ type StringPool struct {
 type String struct {
 	hidden   uintptr // hidden pointer to the string
 	elements *byte   // elements points to the bytes of the string
-	length   int     // length holds the length of the string in byte
+	length   uint    // length holds the length of the string in byte
 	state    uint32  // state holds the state of this weak reference
+	hash     uint64  // hash is the FNV1a hash
 }
 
 // StringSize is the size of a weak string struct in byte.
-const StringSize = 32
+const StringSize = 40
+
+// StringArray is an arbitrary large string array type.
+type StringArray [2147483648]String
+
+// empty is the empty string returned, when trying to intern an empty string or nil.
+var empty = ""
 
 // bytes is a helper to get simplified access to the underlying bytes of a weak string structure.
 func (s *String) bytes() *ByteArray {
@@ -57,18 +60,19 @@ func (s *String) bytes() *ByteArray {
 func NewStringPool() *StringPool {
 	pool := &StringPool{}
 	pool.headSize = 64
-	pool.head = (*String)(unsafe.Pointer(&[64]String{}))
+	pool.head = (*String)(Alloc(64 * StringSize))
+	pool.state = ALIVE
 	return pool
 }
 
 // oldStrings is a helper that returns the old strings as array for simplified access.
-func (pool *StringPool) oldStrings() *[2147483648]String {
-	return (*[2147483648]String)(unsafe.Pointer(pool.old))
+func (pool *StringPool) oldStrings() *StringArray {
+	return (*StringArray)(unsafe.Pointer(pool.old))
 }
 
 // headStrings is a helper that returns the head strings as array for simplified access.
-func (pool *StringPool) headStrings() *[2147483648]String {
-	return (*[2147483648]String)(unsafe.Pointer(pool.head))
+func (pool *StringPool) headStrings() *StringArray {
+	return (*StringArray)(unsafe.Pointer(pool.head))
 }
 
 // Contains tests if the given string is part of the pool.
@@ -84,7 +88,27 @@ func (pool *StringPool) Intern(s *string) *string {
 // ToString will pool the given bytes and return a string. If the bytes exist already as string, the existing string
 // is returned.
 func (pool *StringPool) ToString(b []byte) *string {
-	// The string has at least two byte.
+	length := uint(len(b))
+	if length == 0 {
+		return &empty
+	}
+	array := SliceToByteArray(&b)
+	hash := Fnv1a(array, length)
+	END := pool.headSize - 1
+
+	headStrings := pool.headStrings()
+	//oldString := pool.oldStrings()
+	strings := headStrings
+	index := uint32(hash & uint64(END))
+
+	s := &strings[index]
+	if s.state == ALIVE && s.length == length && s.hash == hash {
+		s_bytes := s.bytes()
+		if s_bytes != nil {
+			//for i := uint32(0); i < length; i++ {
+			//}
+		}
+	}
 	return nil
 }
 

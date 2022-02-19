@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	DEAD  = 0
-	ALIVE = 1
-	USE   = 2
+	DEAD  uint32 = 0
+	ALIVE uint32 = 1
+	USE   uint32 = 2
 )
 
 // Ref is a weak reference to the type T.
