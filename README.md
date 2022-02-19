@@ -9,6 +9,12 @@ Basically the next step is to implement a concurrent weak hash map, as proposed 
 Another implementation of a weak map was done
 by [shyiko](https://gist.github.com/shyiko/e6e2a67e1c882a5034a3a290f9cc1a31).
 
+Other fascinating code was written by [taowen](https://github.com/v2pro/plz/tree/master/gls), he implemented go local
+storage by reading the go routine id from the `g` struct and use it in a global map. Then
+[huandu](https://github.com/huandu/go-tls) implemented local storage using some _capturing_ of the exit method and
+finally there is [jtolio](https://github.com/jtolio/gls), he implemented go locals using a crazy hack with the call
+stack.
+
 ## Warning
 
 This code relies upon features of the garbage collector that may be changed in future go versions!
