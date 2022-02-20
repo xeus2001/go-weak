@@ -5,7 +5,6 @@ import (
 	"github.com/xeus2001/go-weak/pkg/weak"
 	"runtime"
 	"testing"
-	"unsafe"
 )
 
 type _string struct {
@@ -24,16 +23,8 @@ func TestEmptyString(t *testing.T) {
 	}
 }
 
-func TestStringSize(t *testing.T) {
-	var ws weak.String
-	size := uint(unsafe.Sizeof(ws))
-	if size != weak.StringSize {
-		t.Fatalf("Size of the weak.String is defined as %d, but really is: %d", weak.StringSize, size)
-	}
-	g := g.GetG()
-	if g == nil {
-		t.Fatal("Shit")
-	}
+func TestG(t *testing.T) {
+	g.GetG()
 }
 
 func TestWeakness(t *testing.T) {
@@ -59,7 +50,7 @@ func TestWeakness(t *testing.T) {
 	if pool.Size() != 0 {
 		t.Errorf("Expected that the string was garbage collected, but found pool size of: %d", pool.Size())
 	} else {
-		t.Log("Pool freed the reference, new size is 0!")
+		t.Log("Pool freed the reference, green size is 0!")
 	}
 }
 

@@ -27,7 +27,7 @@ func (a *ByteArray) Equals(other *ByteArray, length uint) bool {
 	return true
 }
 
-// StringToByteArray returns a pointer to the byte array underlying the string. If the string is nil or empty, the
+// StringToByteArray returns a pointer to the byte array underlying the String. If the String is nil or empty, the
 // method will return nil.
 func StringToByteArray(string *string) *ByteArray {
 	if string == nil || len(*string) == 0 {

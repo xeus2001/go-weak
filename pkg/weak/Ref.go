@@ -7,19 +7,13 @@ import (
 	"unsafe"
 )
 
-const (
-	DEAD  uint32 = 0
-	ALIVE uint32 = 1
-	USE   uint32 = 2
-)
-
 // Ref is a weak reference to the type T.
 type Ref[T any] struct {
 	hidden uintptr // hidden pointer to T
 	state  uint32  // state
 }
 
-// NewRef creates a new wreak reference to the given value. This requires to provide a pointer to the value. If the
+// NewRef creates a green wreak reference to the given value. This requires to provide a pointer to the value. If the
 // pointer is nil, the method will return a dead weak reference. The method never returns nil.
 func NewRef[T any](pValue *T) *Ref[T] {
 	var r *Ref[T]
